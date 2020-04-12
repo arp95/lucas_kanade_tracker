@@ -28,285 +28,149 @@
 import glob
 import cv2
 import numpy as np
-import math
-import matplotlib.pyplot as plt
-import scipy
-from scipy.stats import norm
-from scipy.stats import multivariate_normal as mvn
 
-# initialise step of em algorithm
-def initialise_step(n, d, k, data):
-    """
-    Inputs:
-    n - number of datapoints
-    d - dimension of the gaussian
-    k - number of the gaussians
+
+# get the grayscale image after converting it to lab colorspace
+def get_grayscale_image(image):
+    clahe = cv2.createCLAHE(clipLimit=1.0, tileGridSize=(1, 1))
+    lab = cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
+    l, a, b = cv2.split(lab)
+    lab = cv2.merge((l, a, clahe.apply(b)))
+    lab = cv2.cvtColor(lab, cv2.COLOR_LAB2BGR)
+    gray = cv2.cvtColor(lab, cv2.COLOR_BGR2GRAY)
+    return gray
+
+# update the grayscale image, that is, normalize the pixel values with template image
+def update_grayscale_image(template_image, image):
+    template_mean = np.mean(template_image)
+    mean = np.mean(image)
+    image = (image * (template_mean / mean)).astype(float)
+    return image
+
+# computes error between images
+def compute_error_images(image_array1, image_array2):
+    return (image_array1 - image_array2)
+
+# computes the coordinates of the ROI of interest
+def get_coordinates_array(x_range, y_range):
+    coordinates_array = np.zeros(3, (x_range[1] - x_range[0] + 1) * (y_range[1] - y_range[0] + 1))
+    count = 0
+    for y in range(y_range[0], y_range[1] + 1):
+        for x in range(x_range[0], x_range[1] + 1):
+            coordinates_array[0, count] = x
+            coordinates_array[1, count] = y
+            coordinates_array[2, count] = 1
+            count = count + 1
+    return coordinates_array
+
+# computes the new coordinates of the image wrt template image
+def get_new_image_coordinates(template_gray_image_coordinates_array, p, x_range, y_range):
     
-    Outputs:
-    weights_gaussian - weight of the gaussians, size (k)
-    mean_gaussian - mean of the gaussians, size (k x d)
-    covariance_matrix_gaussian - covariance of the gaussians, size (k x d x d)
-    probability_values - probability of the datapoint being in the k-gaussians, size (n x k)
-    """
+    # define the rectangle coordinates of the ROI of template image
+    template_rectangle_coordinates = np.array([[x_range[0], x_range[0], x_range[1], x_range[1]], [y_range[0], y_range[1], y_range[1], y_range[0]], [1, 1, 1, 1]])
+
+    # get the affine matrix to get the warped image
+    affine_matrix = np.zeros((2, 3))
+    count = 0
+    for i in range(0, 3):
+        for j in range(0, 2):
+            affine_matrix[j, i] = p[count, 0]
+            count = count + 1
+    affine_matrix[0, 0] = affine_matrix[0, 0] + 1
+    affine_matrix[1, 1] = affine_matrix[1, 1] + 1
     
-    # initialise weights
-    weights_gaussian = np.zeros(k)
-    for index in range(0, k):
-        weights_gaussian[index] = (1.0 / k)
+    # get new rectange coordinates
+    new_rectangle_coordinates = np.dot(affine_matrix, template_rectangle_coordinates)
     
-    # initialise mean
-    mean_gaussian = np.zeros((k, d))
-    for dimension in range(0, k):
-        mean_gaussian[dimension] = np.array([data[np.random.choice(data.shape[0])]], np.float64)
+    # get new coordinates
+    new_gray_image_coordinates_array = np.dot(affine_matrix, template_gray_image_coordinates_array)
+    new_gray_image_coordinates_array = new_gray_image_coordinates_array.astype(int)
     
-    # initialise covariance
-    covariance_matrix_gaussian = np.zeros((k, d, d))
-    for dimension in range(0, k):
-        covariance_matrix_gaussian[dimension] = np.matrix(np.multiply([np.random.randint(1,255) * np.eye(data.shape[1])], np.random.rand(data.shape[1], data.shape[1])))
+    # return the two arrays
+    return (new_gray_image_coordinates_array, new_rectangle_coordinates)
     
-    # randomly initialise probability
-    probability_values = np.zeros((n, k))
-    for index in range(0, n):
-        probability_values[index][np.random.randint(0, k)] = 1
+# computes the pixel array
+def get_pixel_array(image, image_coordinates_array):
+    
+    # get the pixel values of the ROI of the image
+    pixel_array = np.zeros(1, image_coordinates_array.shape[1])
+    pixel_array[0, :] = image[image_coordinates_array[1, :], image_coordinates_array[0, :]]
+    return pixel_array
+    
+# compute the error in the p matrix
+def get_delta_p(error, steep_descent):
+    # compute the sd_param and hessian matrix
+    sd_param_matrix = np.dot(steep_descent.T, error.T)
+    hessian_matrix = np.dot(steep_descent.T, steep_descent)
+    hessian_matrix_inv = np.linalg.pinv(hessian_matrix)
+    
+    # use the above two matrices to get the error in p matrix and return
+    delta_p = np.dot(hessian_matrix_inv, sd_param_matrix)
+    return delta_p    
+    
+# compute the steep descent using two images and the coordinates of the ROI of two images
+def get_steep_descent(sobelx, sobely, template_gray_image_coordinates_array, new_gray_image_coordinates_array):
+    
+    # get the pixel array for sobelx
+    sobelx_pixel_array = get_pixel_array(sobelx, new_gray_image_coordinates_array)
+    
+    # get the pixel array for sobely
+    sobely_pixel_array = get_pixel_array(sobely, new_gray_image_coordinates_array)
+    
+    # get four images
+    image1 = sobelx_pixel_array * template_gray_image_coordinates_array[0, :]
+    image2 = sobely_pixel_array * template_gray_image_coordinates_array[0, :]
+    image3 = sobelx_pixel_array * template_gray_image_coordinates_array[1, :]
+    image4 = sobely_pixel_array * template_gray_image_coordinates_array[1, :]
+    
+    # return the six images
+    return np.vstack((image1, image2, image3, image4, sobelx_pixel_array, sobely_pixel_array)).T
+    
+# lucas kanade algorithm
+def lucas_kanade_algorithm(template_gray_image, current_gray_image, sobelx, sobely, x_range, y_range, thresh):
+    
+    # get the coordinates of the ROI for template image
+    template_gray_image_coordinates_array = get_coordinates_array(x_range, y_range)
+    
+    # define p matrix, used for calculating the warped image
+    p = np.array([[0, 0, 0, 0, 0, 0]]).T
+    
+    # get the coordinates of the ROI in the new frame
+    (new_template_image_coordinates_array, new_rectangle_coordinates) = get_new_image_coordinates(template_gray_image_coordinates_array, p, x_range, y_range)
+    
+    # get the pixel array of the template image
+    template_pixel_array = get_pixel_array(template_gray_image, new_template_image_coordinates_array)
+    
+    # run algorithm
+    while(True):
         
-    # return the arrays
-    return (weights_gaussian, mean_gaussian, covariance_matrix_gaussian, probability_values)
-
-
-# gaussian estimation for expectation step
-def gaussian_estimation(data_point, mean, covariance, dimension):
-    """
-    Inputs:
-    data_point - data point of the gaussian, size (1 x d)
-    mean - mean of the gaussian, size (1 x d)
-    covariance - covariance of the gaussian, size (1 x d x d)
-    dimension - dimension of the gaussian
-    
-    Outputs:
-    value of the gaussian
-    """
-    
-    determinant_covariance = np.linalg.det(covariance)
-    determinant_covariance_root = np.sqrt(determinant_covariance)
-    covariance_inverse = np.linalg.inv(covariance)
-    gaussian_pi_coeff = 1.0 / np.power((2 * np.pi), (dimension / 2))
-    data_mean_diff = (data_point - mean)
-    data_mean_diff_transpose = data_mean_diff.T     
-    return (gaussian_pi_coeff) * (determinant_covariance_root) * np.exp(-0.5 * np.matmul(np.matmul(data_mean_diff, covariance_inverse), data_mean_diff_transpose))
-
-
-# gaussian estimation for n-points
-def gaussian_estimation_array(data_point, mean, covariance, dimension):
-    """
-    Inputs:
-    data_point - data point of the gaussian, size (n x d)
-    mean - mean of the gaussian, size (1 x d)
-    covariance - covariance of the gaussian, size (1 x d x d)
-    dimension - dimension of the gaussian
-    
-    Outputs:
-    value of the gaussian, size (n x d)
-    """
-    
-    determinant_covariance = np.linalg.det(covariance)
-    determinant_covariance_root = np.sqrt(determinant_covariance)
-    covariance_inverse = np.linalg.inv(covariance)
-    gaussian_pi_coeff = 1.0 / np.power((2 * np.pi), (dimension / 2))
-    data_mean_diff = (data_point - mean)
-    data_mean_diff_transpose = data_mean_diff.T 
-    val = (gaussian_pi_coeff) * (determinant_covariance_root) * np.exp(-0.5 * np.sum(np.multiply(data_mean_diff * covariance_inverse, data_mean_diff), axis=1))
-    return np.reshape(val, (data_point.shape[0], data_point.shape[1]))
-
-
-# gaussian estimation for 3-dimensional case
-def gaussian_estimation_3d(data_point, mean, cov):
-    """
-    Inputs:
-    data_point - data point of the gaussian, size (n x d)
-    mean - mean of the gaussian, size (1 x d)
-    cov - covariance of the gaussian, size (1 x d x d)
-    
-    Outputs:
-    value of the gaussian, size (n x d)
-    """
-
-    det_cov = np.linalg.det(cov)
-    cov_inv = np.zeros_like(cov)
-    mean = np.array(mean)
-    cov = np.array(cov)
-    for i in range(data_point.shape[1]):
-        cov_inv[i, i] = 1 / cov[i, i]
-    diff = np.matrix(data_point - mean)
-    return (2.0 * np.pi) ** (-len(data_point[1]) / 2.0) * (1.0 / (np.linalg.det(cov) ** 0.5)) * np.exp(-0.5 * np.sum(np.multiply(diff * cov_inv, diff), axis=1))
-
-
-def compute_log_likelihood(input_data, mixture_coeff, mean_gaussian, covariance_gaussian, K):
-    
-    """
-    Inputs
-    
-    mixture_coeff: Mixture coefficient is the probability of the kth gaussian of size (k)
-    mean_gaussian: the mean is the mean of the kth gaussian of size (kxd)
-    covariance_gaussian: Covariance of the Kth gaussian of size (kxdxd)
-    data - training data, size (n x d)
-    K: Number of Gaussians
-    
-    """
-    # We need to compute the log likelihood and do a test for convergence
-    n = input_data.shape[0]
-
-    log_likelihood =  np.log(np.sum(mixture_coeff[k]*mvn.pdf(input_data,mean_gaussian[k],covariance_gaussian[k]) for k in range(K)))
+        # get the coordinates of the ROI in the new frame
+        (new_gray_image_coordinates_array, new_rectangle_coordinates) = get_new_image_coordinates(template_gray_image_coordinates_array, p, x_range, y_range)
         
-    return np.sum(log_likelihood)
-
-
-# e-step of the algorithm
-# reference: https://towardsdatascience.com/an-intuitive-guide-to-expected-maximation-em-algorithm-e1eb93648ce9
-def expectation_step(n, d, k, data, weights_gaussian, mean_gaussian, covariance_matrix_gaussian, probability_values):
-    """
-    Inputs:
-    n - the number of data-points
-    d - dimension of gaussian
-    k - number of gaussians
-    data - data to be trained on of size (n x d)
-    weights_gaussian - weight of gaussians of size (k)
-    mean_gaussian - mean of gaussians of size (k x d)
-    covariance_matrix_gaussian - covariance of gaussians of size (k x d x d)
-    probability_values - probability of the datapoint being in a gaussian of size (n x k)
-    
-    Outputs:
-    probabilities - probability array of size (n x k)
-    """
-    
-    # create empty array of list of probabilities
-    for dimension in range(0, k):
-        probability_values[: ,dimension:dimension+1] = gaussian_estimation_3d(data, mean_gaussian[dimension], covariance_matrix_gaussian[dimension]) * weights_gaussian[dimension]
-            
-    prob_sum = np.sum(probability_values, axis=1)
-    log_likelihood = np.sum(np.log(prob_sum))
-    probability_values = np.divide(probability_values, np.tile(prob_sum, (k,1)).transpose())
-    return (np.array(probability_values), log_likelihood)
-
-
-# m-step of the algorithm
-# reference: https://towardsdatascience.com/an-intuitive-guide-to-expected-maximation-em-algorithm-e1eb93648ce9
-def maximization_step(n, d, k, data, weights_gaussian, mean_gaussian, covariance_matrix_gaussian, probability_values):
-    """
-    Inputs:
-    n - number of data-points
-    d - dimension of gaussian
-    k - number of gaussians
-    data - training data, size (n x d)
-    weights_gaussian - weight of the gaussians, size (k)
-    mean_gaussian - mean of the gaussians, size (k x d)
-    covariance_matrix_gaussian - covariance of the gaussians, size (k x d x d)
-    probability_values - probability of the datapoint being in a gaussian, size (n x k)
-    
-    Outputs:
-    weights_gaussian - weight of the gaussians, size (k)
-    new_mean - mean of the gaussians, size (k x d)
-    new_cov - covariance of the gaussians, size (k x d x d)
-    """
-
-    prob_sum = np.sum(probability_values, axis=0)
-    new_mean = np.zeros_like(mean_gaussian)
-    new_cov = np.zeros_like(covariance_matrix_gaussian)
-    for dimension in range(0, k):
-        temp_sum = math.fsum(probability_values[:, dimension])
-        new_mean[dimension] = 1. / prob_sum[dimension] * np.sum(probability_values[:, dimension] * data.T, axis = 1).T           
-        diff = data - new_mean[dimension]
-        new_cov[dimension] = np.array(1. / prob_sum[dimension] * np.dot(np.multiply(diff.T, probability_values[:, dimension]), diff)) 
-        weights_gaussian[dimension] = 1. / (data.shape[0]) * prob_sum[dimension]
-    return (weights_gaussian, new_mean, new_cov)
-
-
-# run e-m algorithm
-def run_expectation_maximization_algorithm(n, d, k, iterations, data):
-    """
-    Inputs:
-    n - number of data-points
-    d - dimension of gaussian
-    k - number of gaussians
-    iterations - number of iterations 
-    data - training data, size (n x d)
-    
-    Outputs:
-    weights_gaussian - weight of the gaussians, size (k)
-    mean_gaussian - mean of the gaussians, size (k x d)
-    covariance_matrix_gaussian - covariance of the gaussians, size (k x d x d)
-    """
-    
-    # initialise step
-    (weights_gaussian, mean_gaussian, covariance_matrix_gaussian, probability_values) = initialise_step(n, d, k, data)
-    log_likelihoods = []    
-
-    # run for fixed iterations
-    for i in range(0, iterations):
-    
-        # m-step
-        (weights_gaussian, mean_gaussian, covariance_matrix_gaussian) = maximization_step(n, d, k, data, weights_gaussian, mean_gaussian, covariance_matrix_gaussian, probability_values)
-    
-        # e-step
-        probability_values, log_likelihood = expectation_step(n, d, k, data, weights_gaussian, mean_gaussian, covariance_matrix_gaussian, probability_values)
-        log_likelihoods.append(log_likelihood)    
-
-        # Loss Function( Test for convergence )
-        log_likelihood = compute_log_likelihood(data, weights_gaussian, mean_gaussian, covariance_matrix_gaussian,k)
-        
-        if i%10 == 0:
-            print("For iteration: " + str(i) + "\nweights: " + str(weights_gaussian) + "\nmean_gaussian: " + str(mean_gaussian) + "\ncovariance: " + str(covariance_matrix_gaussian) + "\nloss: " + str(log_likelihood))
-            print()
-        if(len(log_likelihoods) > 2 and np.abs(log_likelihood - log_likelihoods[-2]) < 0.0001):
+        # if new coordinates not in range, then break
+        if(new_gray_image_coordinates_array[0, 0] < 0 or new_gray_image_coordinates_array[1, 0] < 0 or new_gray_image_coordinates_array[0, new_gray_image_coordinates_array.shape[1] - 1] > current_gray_image.shape[1] or new_gray_image_coordinates_array[1, new_gray_image_coordinates_array.shape[1] - 1] > current_gray_image.shape[0]):
             break
-  
-    # return answer
-    return (weights_gaussian, mean_gaussian, covariance_matrix_gaussian)
-
-
-# plot histogram
-def plot_hist(image):
-    # loop over the image channels
-    chans = cv2.split(image)
-    colors = ("b", "g", "r")
-    features = []
-    for (chan, color) in zip(chans, colors):
-        hist = cv2.calcHist([chan], [0], None, [256], [0, 256])
-        hist = hist / hist.sum()
-        features.extend(hist)
-        plt.plot(hist, color = color)
-        plt.xlim([0, 256])
-
-
-# data for training
-def get_training_data(file_path, channel1, channel2, channel3):
-    data = []
-    files = glob.glob(file_path + "/*")
-    for file in files:
-        image = cv2.imread(file)
-        for row in range(image.shape[0]):
-            for col in range(image.shape[1]):
-                val = []
-                if(channel1):
-                    val.append(image[row, col, 0])
-                if(channel2):
-                    val.append(image[row, col, 1])
-                if(channel3):
-                    val.append(image[row, col, 2])
-                data.append(val)
-    return np.array(data)
-
-
-# reference: https://www.pyimagesearch.com/2015/04/20/sorting-contours-using-python-and-opencv/
-def sort_contours(cnts, method="left-to-right"):
-    reverse = False
-    i = 0
-    if method == "right-to-left" or method == "bottom-to-top":
-        reverse = True
+            
+        # get the pixel array of the gray image
+        new_pixel_array = get_pixel_array(current_gray_image, new_gray_image_coordinates_array)
         
-    if method == "top-to-bottom" or method == "bottom-to-top":
-        i = 1
-
-    boundingBoxes = [cv2.boundingRect(c) for c in cnts]
-    (cnts, boundingBoxes) = zip(*sorted(zip(cnts, boundingBoxes),
-        key=lambda b:b[1][i], reverse=reverse))
-    return (cnts, boundingBoxes)
+        # compute the error
+        error = compute_error_images(template_pixel_array, new_pixel_array)
+        
+        # compute steep descent
+        steep_descent = get_steep_descent(sobelx, sobely, template_gray_image_coordinates_array, new_gray_image_coordinates_array)
+        
+        # get the delta_p
+        delta_p = get_delta_p(error, steep_descent)
+        
+        # get p norm and update p
+        p_norm = np.linalg.norm(delta_p)
+        p = np.reshape(p, (6, 1))
+        p = p + delta_p
+        
+        # if p_norm within thresh break
+        if(p_norm < thresh):
+            break
+            
+    # return the ROI needed for this frame
+    return new_rectangle_coordinates
