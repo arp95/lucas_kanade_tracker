@@ -234,7 +234,7 @@ def get_steep_descent(sobelx, sobely, template_image_coordinates_array, new_gray
     
     
 # lucas kanade algorithm
-def lucas_kanade_algorithm(template_gray_image, current_gray_image, x_range, y_range, thresh, p):
+def lucas_kanade_algorithm(template_gray_image, current_gray_image, x_range, y_range, p):
     """
     Inputs:
     
@@ -274,7 +274,7 @@ def lucas_kanade_algorithm(template_gray_image, current_gray_image, x_range, y_r
         (new_gray_image_coordinates_array, new_rectangle_coordinates) = get_new_image_coordinates(template_image_coordinates_array, p, x_range, y_range)
         
         # if new coordinates not in range, then break
-        if(count > 10 or new_gray_image_coordinates_array[0, 0] < 0 or new_gray_image_coordinates_array[1, 0] < 0 or new_gray_image_coordinates_array[0, new_gray_image_coordinates_array.shape[1] - 1] > current_gray_image.shape[1] or new_gray_image_coordinates_array[1, new_gray_image_coordinates_array.shape[1] - 1] > current_gray_image.shape[0]):
+        if(count > 25 or new_gray_image_coordinates_array[0, 0] < 0 or new_gray_image_coordinates_array[1, 0] < 0 or new_gray_image_coordinates_array[0, new_gray_image_coordinates_array.shape[1] - 1] >= current_gray_image.shape[1] or new_gray_image_coordinates_array[1, new_gray_image_coordinates_array.shape[1] - 1] >= current_gray_image.shape[0]):
             break
             
         # get the pixel array of the gray image
@@ -296,8 +296,8 @@ def lucas_kanade_algorithm(template_gray_image, current_gray_image, x_range, y_r
         count = count + 1
         
         # if p_norm within thresh break
-        if(p_norm < thresh):
-            break
+        #if(p_norm < thresh):
+        #    break
             
     # return the ROI needed for this frame
     return (new_rectangle_coordinates, p)
