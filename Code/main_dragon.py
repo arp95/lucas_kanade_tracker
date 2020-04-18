@@ -38,8 +38,8 @@ if(len(args) > 1):
 path_of_images = path_data + "/*"
 files  = glob.glob(path_of_images)
 files = sorted(files)
-x_range = np.array([86, 234])
-y_range = np.array([70, 312])
+x_range = np.array([160, 216])
+y_range = np.array([83, 148])
 p = np.array([[0, 0, 0, 0, 0, 0]]).T
 template_image = cv2.imread(files[0])
 gray_template_image = get_grayscale_image(template_image)
@@ -55,15 +55,13 @@ for file in files:
     
     # get grayscale image
     gray = get_grayscale_image(image_copy)
-    gray = update_grayscale_image(gray_template_image, gray)
+    #gray = update_grayscale_image(gray_template_image, gray)
     
     # run lucas-kanade algo
-    (new_rectangle_coordinates, p) = lucas_kanade_algorithm(gray_template_image, gray, x_range, y_range, p)
+    (p, top_left, bottom_right) = lucas_kanade_algo(gray_template_image, gray, x_range, y_range, p, 0.005, 100, True)
     count = count + 1
     
-    centroid_x = int((new_rectangle_coordinates[0, 0] + new_rectangle_coordinates[0, 2]) / 2.0)
-    centroid_y = int((new_rectangle_coordinates[1, 0] + new_rectangle_coordinates[1, 2]) / 2.0)
-    image = cv2.rectangle(image, (centroid_x - 74, centroid_y - 121), (centroid_x + 74, centroid_y + 121), (0, 0, 255), 2)
+    image = cv2.rectangle(image, (int(top_left[0][0]), int(top_left[1][0])), (int(bottom_right[0][0]), int(bottom_right[1][0])), (0, 0, 255), 2)
     
     # write frame
     out.write(image)
