@@ -77,7 +77,7 @@ def update_grayscale_image(template_image, image):
     return image
 
 
-def lucas_kanade_algo(template_frame, current_frame, x_range, y_range, p, thresh, constant, flag):
+def lucas_kanade_algo(template_frame, current_frame, x_range, y_range, p, thresh, constant, flag, add_brightness_weight):
     
     # compute the roi of the template
     template_frame = template_frame[int(y_range[0]):int(y_range[1]), int(x_range[0]):int(x_range[1])]
@@ -87,7 +87,7 @@ def lucas_kanade_algo(template_frame, current_frame, x_range, y_range, p, thresh
     sobely = cv2.Sobel(current_frame, cv2.CV_64F, 0, 1, ksize = 5)
     
     count = 0
-    while(count <= 80):
+    while(count <= 50):
         count = count + 1
         
         # affine matrix
@@ -115,6 +115,10 @@ def lucas_kanade_algo(template_frame, current_frame, x_range, y_range, p, thresh
             for x in range(x_range[0], x_range[1]):
                 jacobian = [x * warped_sobelx[count][0], x * warped_sobely[count][0], y * warped_sobelx[count][0], y * warped_sobely[count][0], warped_sobelx[count][0], warped_sobely[count][0]]
                 steep_descent.append(jacobian)
+
+                if(add_brightness_weight and (error[count][0] < -40 or error[count][0] > 40)):
+                    error[count][0] = 0
+
                 count = count + 1
         steep_descent = np.array(steep_descent)
         
