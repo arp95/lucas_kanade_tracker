@@ -87,7 +87,7 @@ def lucas_kanade_algo(template_frame, current_frame, x_range, y_range, p, thresh
     sobely = cv2.Sobel(current_frame, cv2.CV_64F, 0, 1, ksize = 5)
     
     count = 0
-    while(count <= 80):
+    while(count <= 50):
         count = count + 1
         
         # affine matrix
