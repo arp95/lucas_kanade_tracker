@@ -44,7 +44,7 @@ p = np.array([[0, 0, 0, 0, 0, 0]]).T
 template_image = cv2.imread(files[0])
 gray_template_image = get_grayscale_image(template_image)
 fourcc = cv2.VideoWriter_fourcc(*'XVID')
-out = cv2.VideoWriter("output_dragon.avi", fourcc, 20.0, (640, 360))
+out = cv2.VideoWriter("output_dragon.avi", fourcc, 10.0, (640, 360))
 
 # read frames
 count = 0
