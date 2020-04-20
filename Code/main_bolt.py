@@ -23,6 +23,7 @@
  *  DEALINGS IN THE SOFTWARE.
 """
 
+
 # header files
 from utils import *
 import glob
@@ -44,7 +45,7 @@ p = np.array([[0, 0, 0, 0, 0, 0]]).T
 template_image = cv2.imread(files[0])
 gray_template_image = get_grayscale_image(template_image)
 fourcc = cv2.VideoWriter_fourcc(*'XVID')
-out = cv2.VideoWriter("output_bolt.avi", fourcc, 20.0, (480, 270))
+out = cv2.VideoWriter("output_bolt.avi", fourcc, 10.0, (480, 270))
 
 # read frames
 count = 0
@@ -62,7 +63,7 @@ for file in files:
     count = count + 1
     
     image = cv2.rectangle(image, (max(int(top_left[0][0]), int(bottom_right[0][0]) - 100), int(top_left[1][0])), (int(bottom_right[0][0]), int(bottom_right[1][0])), (0, 0, 255), 2)
-    
+
     # write frame
     out.write(image)
 
