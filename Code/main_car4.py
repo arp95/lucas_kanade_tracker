@@ -44,7 +44,7 @@ p = np.array([[0, 0, 0, 0, 0, 0]]).T
 template_image = cv2.imread(files[0])
 gray_template_image = get_grayscale_image(template_image)
 fourcc = cv2.VideoWriter_fourcc(*'XVID')
-out = cv2.VideoWriter("output_car4.avi", fourcc, 20.0, (360, 240))
+out = cv2.VideoWriter("output_car4.avi", fourcc, 10.0, (360, 240))
 
 # read frames
 count = 0
@@ -55,13 +55,13 @@ for file in files:
     
     # get grayscale image
     gray = get_grayscale_image(image_copy)
-    #gray = update_grayscale_image(gray_template_image, gray)
+    gray = update_grayscale_image(gray_template_image, gray)
     
     # run lucas-kanade algo
-    (p, top_left, bottom_right) = lucas_kanade_algo(gray_template_image, gray, x_range, y_range, p, 0.005, 100, True)
+    (p, top_left, bottom_right) = lucas_kanade_algo(gray_template_image, gray, x_range, y_range, p, 0.1, 90, True, True)
     count = count + 1
     
-    image = cv2.rectangle(image, (int(top_left[0][0]), int(top_left[1][0])), (int(bottom_right[0][0]), int(bottom_right[1][0])), (0, 0, 255), 2)
+    image = cv2.rectangle(image, (max(int(top_left[0][0]), int(bottom_right[0][0]) - 100), int(top_left[1][0])), (int(bottom_right[0][0]), int(bottom_right[1][0])), (0, 0, 255), 2)
     
     # write frame
     out.write(image)

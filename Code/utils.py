@@ -116,7 +116,7 @@ def lucas_kanade_algo(template_frame, current_frame, x_range, y_range, p, thresh
                 jacobian = [x * warped_sobelx[count][0], x * warped_sobely[count][0], y * warped_sobelx[count][0], y * warped_sobely[count][0], warped_sobelx[count][0], warped_sobely[count][0]]
                 steep_descent.append(jacobian)
 
-                if(add_brightness_weight and (error[count][0] < -40 or error[count][0] > 40)):
+                if(add_brightness_weight and (error[count][0] < -50 or error[count][0] > 50)):
                     error[count][0] = 0
 
                 count = count + 1
