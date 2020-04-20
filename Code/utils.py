@@ -77,7 +77,8 @@ def update_grayscale_image(template_image, image):
     return image
 
 
-def lucas_kanade_algo(template_frame, current_frame, x_range, y_range, p, thresh, constant, flag, add_brightness_weight):
+# lucas-kanade algorithm
+def lucas_kanade_algo(template_frame, current_frame, x_range, y_range, p, thresh, delta_p_constant, flag, add_brightness_weight):
     
     # compute the roi of the template
     template_frame = template_frame[int(y_range[0]):int(y_range[1]), int(x_range[0]):int(x_range[1])]
@@ -131,7 +132,7 @@ def lucas_kanade_algo(template_frame, current_frame, x_range, y_range, p, thresh
         delta_p = np.dot(hessian_matrix_inv, sd_param_matrix)
         p_norm = np.linalg.norm(delta_p)
         p = np.reshape(p, (6, 1))
-        delta_p = constant * delta_p
+        delta_p = delta_p_constant * delta_p
         p = p + delta_p
         
         if(flag and p_norm < thresh):
