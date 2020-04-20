@@ -6,10 +6,6 @@ Shantam Bajpai
 Arpit Aggarwal
 
 
-### Example of Lucas-Kanade Tracker on Bolt Video
-![](https://j.gifs.com/L7z5Ow.gif)
-
-
 ### Example of Lucas-Kanade Tracker on Car Video
 ![](https://j.gifs.com/5Q41kB.gif)
 
