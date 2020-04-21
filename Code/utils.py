@@ -145,3 +145,89 @@ def lucas_kanade_algo(template_frame, current_frame, x_range, y_range, p, thresh
     updated_top_left = np.dot(affine_mat, top_left)
     updated_bottom_right = np.dot(affine_mat, bottom_right)
     return (p, updated_top_left, updated_bottom_right)
+
+# The inverse Compositional Lucas Kanade Algorithm
+def LucasKanadeInverseCompositional(template, image, rect, affine_matrix, threshold, iterations):
+    
+    """
+    Inputs:
+    
+    image: The input gray scale image
+    template: The template image
+    rect: The top left coordinates and the bottom right coordinates of the rectangle format--> [x1,y1,x2,y2]
+    threshold: The threshold that has been set to terminate the iterations as soon as delta p value approaches the threshold value
+    parameters: The initial parameters of the affine warp
+    iterations: Number of times the algorithm needs to run
+    
+    Returns:
+    
+    p: Paramters of the affine warp matrix
+    Upper left bounding bax coordinates
+    Downright bounding box coordinates
+    
+    """
+    # Threshold for convergence
+    thresh = threshold
+    
+    # Crop the Region of interest in our template
+    template = crop_warped(template, rect)
+    
+    # Evaluation of the template gradient 
+    # Compute the image gradient in the x direction
+    sobelx_template = cv2.Sobel(template, cv2.CV_64F, dx = 1, dy = 0, ksize = 5)
+        
+    # Compute the image gradient in the y direction
+    sobely_template = cv2.Sobel(template, cv2.CV_64F, dx = 0, dy = 1, ksize = 5)
+    
+    # Horizontally stack the obtained Template gradients
+    # Flatten out the warped gradients
+    sobelx_template = sobelx_template.reshape(-1,1)
+    sobely_template = sobely_template.reshape(-1,1)
+    
+    # Template Gradient
+    template_gradient = np.hstack((sobelx_template,sobely_template))
+    
+    I = affine_matrix
+    
+    # Evaluate the Jacobian and the steepest descent 
+    count = 0
+    steepest_descent = []
+    for y in range(rect[1],rect[3]):
+        for x in range(rect[0],rect[2]):
+                
+            Jacobian = [x*sobelx_template[count][0], x*sobely_template[count][0], y*sobelx_template[count][0], y*sobely_template[count][0], sobelx_template[count][0], sobely_template[count][0]]
+            steepest_descent.append(Jacobian)
+            count = count + 1
+    steepest_descent = np.array(steepest_descent)
+    
+    # Evaluate the Hessian Matrix
+    hessian = np.matmul(steepest_descent.T,steepest_descent)
+    
+    for iterations in range(iterations):
+        
+        # Warp the Input Image
+        warped_image = cv2.warpAffine(image, affine_matrix, (0, 0), flags=cv2.INTER_CUBIC + cv2.WARP_INVERSE_MAP)
+        
+        # Compute the error image
+        error_image = crop_warped(warped_image,rect) - template
+        
+        # Update the steepest descent parameters
+        sd_params_update = np.matmul(steepest_descent.T, error_image.reshape(-1,1))
+        
+        #Compute delta p
+        delta_p = np.matmul(np.linalg.pinv(hessian),sd_params_update)
+        
+        #Compute the updated Warp matrix
+        affine_warp_delta_p = np.vstack([delta_p.reshape(2,3) + I,[0,0,1]])
+        updated_warp_matrix = np.matmul(affine_matrix, np.linalg.inv(affine_warp_delta_p))
+        
+        # Convergence test
+        if np.linalg.norm(delta_p) <= thresh:
+            break
+    top_left_coordinates = np.array([[rect[0]],[rect[1]],[1]])
+    bottom_right_coordinates = np.array([[rect[2]], [rect[3]], [1]])
+    updated_top_left_coordinates = np.matmul(updated_warp_matrix, top_left_coordinates)
+    updated_bottom_right_coordinates = np.matmul(updated_warp_matrix, bottom_right_coordinates)
+    
+    print(f'top_left: {updated_top_left_coordinates} \tbottom_right:{updated_bottom_right_coordinates}')
+    return updated_warp_matrix, updated_top_left_coordinates, updated_bottom_right_coordinates
