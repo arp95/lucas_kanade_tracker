@@ -54,6 +54,17 @@ def get_grayscale_image(image):
     # return grayscale image
     return gray
 
+def crop_warped(image,rect):
+    
+    """
+    Inputs:
+    image: The warped image after performing an affine transformation
+    rect: The upleft and the truth bounding box
+    
+    """
+    #warped = image[rect[1]:rect[1]+rect[3],rect[0]:rect[0]+rect[2]]
+    warped = image[rect[1]:rect[3], rect[0]:rect[2]]
+    return warped
 
 # update the grayscale image, that is, normalize the pixel values with template image
 def update_grayscale_image(template_image, image):
