@@ -10,7 +10,7 @@ Shantam Bajpai
 
 
 ### Introduction to the Project
-In this project, we will be using Lucas-Kanade method for object tracking in a video. Lucas Kanade states that the optical flow is essentially constant in a local neighborhood of the pixel under consideration and solves the basic optical flow equations for all the pixels in the neighborhood by the least squares criterion. The algorithm is described in more detail in the "Report.pdf" file.
+In this project, we used Lucas-Kanade method for object tracking in a video. Lucas Kanade states that the optical flow is essentially constant in a local neighborhood of the pixel under consideration and solves the basic optical flow equations for all the pixels in the neighborhood by the least squares criterion. The algorithm is described in more detail in the "Report.pdf" file.
 
 
 ### Example of Lucas-Kanade Tracker on a Car Video
